@@ -249,7 +249,11 @@ export default function Students() {
                     <td className="px-3 py-3">{student.level}</td>
                     <td className="px-3 py-3">
                       <Badge color={student.face_registered ? "green" : "amber"}>
-                        {student.face_registered ? "Registered" : "Not yet"}
+                        {student.face_status === "needs_reregistration"
+                          ? "Re-register needed"
+                          : student.face_registered
+                            ? "Registered"
+                            : "Not yet"}
                       </Badge>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">

@@ -92,9 +92,9 @@ export function deactivateStudent(id) {
   return api.delete(`/students/${id}`);
 }
 
-export function registerFace(id, images) {
-  // Face processing on the server can take a few seconds on a laptop CPU.
-  return api.post(`/students/${id}/register-face`, { images }, { timeout: 120000 });
+// The browser computes the face embeddings; only numbers are sent, never photos.
+export function registerFace(id, embeddings, model) {
+  return api.post(`/students/${id}/register-face`, { embeddings, model }, { timeout: 60000 });
 }
 
 // ----- Courses and lecturers -----
@@ -124,10 +124,10 @@ export function endAttendance(sessionId) {
 }
 
 // `signal` lets the caller cancel an in-flight frame when the session ends.
-export function recognizeFace(sessionId, image, signal) {
+export function recognizeFace(sessionId, embedding, model, signal) {
   return api.post(
     "/attendance/recognize",
-    { session_id: sessionId, image },
+    { session_id: sessionId, embedding, model },
     { signal, timeout: 20000 }
   );
 }

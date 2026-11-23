@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { registerFace } from "../services/api";
 import { Alert, Button, Spinner } from "./ui";
+import ModelStatus from "./ModelStatus";
+import useFaceEngine from "../hooks/useFaceEngine";
+import { EMBEDDING_MODEL, FaceIssue, embedFace } from "../services/faceEngine";
 import { captureFrame } from "../utils/image";
 import { errorMessage } from "../utils/format";
 
@@ -23,6 +26,8 @@ export default function FaceRegister({ student, onDone }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [analysing, setAnalysing] = useState(false);
+  const engine = useFaceEngine();
 
   useEffect(() => {
     let cancelled = false;
@@ -50,16 +55,21 @@ export default function FaceRegister({ student, onDone }) {
     };
   }, []);
 
-  function capture() {
-    if (images.length >= MAX_IMAGES) return;
-    const image = captureFrame(videoRef.current, { maxSide: 800, quality: 0.85 });
-    if (!image) {
-      setError("Camera is not ready yet");
-      return;
-    }
-    setImages((current) => [...current, image]);
+  // Each capture is analysed immediately: exactly one usable face, or an error to retry.
+  async function capture() {
+    if (images.length >= MAX_IMAGES || analysing) return;
+    setAnalysing(true);
     setError("");
     setMessage("");
+    try {
+      const result = await embedFace(videoRef.current, { policy: "single" });
+      const thumb = captureFrame(videoRef.current, { maxSide: 160, quality: 0.7 });
+      setImages((current) => [...current, { thumb, embedding: result.embedding }]);
+    } catch (err) {
+      setError(err instanceof FaceIssue ? err.message : "Face analysis failed. Try again.");
+    } finally {
+      setAnalysing(false);
+    }
   }
 
   function remove(index) {
@@ -73,9 +83,13 @@ export default function FaceRegister({ student, onDone }) {
     }
     setSaving(true);
     setError("");
-    setMessage("Checking and saving your photos. This can take a few seconds...");
+    setMessage("Saving face data...");
     try {
-      const { data } = await registerFace(student.id, images);
+      const { data } = await registerFace(
+        student.id,
+        images.map((item) => item.embedding),
+        EMBEDDING_MODEL
+      );
       setMessage(data.message || "Face registered");
       onDone();
     } catch (err) {
@@ -90,12 +104,13 @@ export default function FaceRegister({ student, onDone }) {
     <div>
       <p className="mb-3 text-sm text-slate-500">
         {student.full_name} ({student.matric_number}). Capture {MIN_IMAGES} to {MAX_IMAGES} clear photos of
-        one face. Original photos are not stored. This does not fully prevent spoofing.
+        one face. Faces are analysed on this device; photos are never uploaded or stored. This does not fully prevent spoofing.
       </p>
 
       {cameraError ? <Alert>{cameraError}</Alert> : null}
       <Alert>{error}</Alert>
       <Alert type="info">{message}</Alert>
+      <ModelStatus {...engine} onRetry={engine.retry} />
 
       <div className="relative mb-3 w-full max-w-xl overflow-hidden rounded-xl bg-slate-900">
         <video
@@ -123,7 +138,7 @@ export default function FaceRegister({ student, onDone }) {
       <div className="mb-4 flex flex-wrap gap-2">
         {images.map((image, index) => (
           <div key={index} className="relative">
-            <img src={image} alt={`Capture ${index + 1}`} className="h-20 w-20 rounded-lg object-cover" />
+            <img src={image.thumb} alt={`Capture ${index + 1}`} className="h-20 w-20 rounded-lg object-cover" />
             <button
               type="button"
               onClick={() => remove(index)}
@@ -138,8 +153,8 @@ export default function FaceRegister({ student, onDone }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" icon="camera" onClick={capture} disabled={!ready || saving || images.length >= MAX_IMAGES}>
-          Capture ({images.length}/{MAX_IMAGES})
+        <Button variant="secondary" icon="camera" onClick={capture} loading={analysing} disabled={!ready || saving || engine.status !== "ready" || images.length >= MAX_IMAGES}>
+          {analysing ? "Analysing..." : `Capture (${images.length}/${MAX_IMAGES})`}
         </Button>
         <Button variant="secondary" onClick={() => setImages([])} disabled={saving || images.length === 0}>
           Clear

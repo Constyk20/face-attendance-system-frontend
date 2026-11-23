@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Spinner } from "./ui";
-import { captureFrame } from "../utils/image";
 
 /**
- * Live camera that sends frames to `onFrame` ONE AT A TIME.
+ * Live camera that hands the <video> element to `onFrame` ONE AT A TIME.
  *
- * The next frame is only captured after the previous request has finished
- * (the backend rejects overlapping and too-fast requests). `onFrame(image, signal)`
+ * The next frame is only processed after the previous call has finished (face
+ * embedding in the browser plus the server request). `onFrame(video, signal)`
  * may return `{ delayMs }` to change the wait before the next frame.
- *
- * Frames are downscaled to 640 px and sent as JPEG quality 0.7.
+ * Nothing is uploaded from here: the caller turns the frame into an embedding.
  */
 export default function WebcamCapture({ active, onFrame, intervalMs = 1200, scanning = true }) {
   const videoRef = useRef(null);
@@ -63,10 +61,10 @@ export default function WebcamCapture({ active, onFrame, intervalMs = 1200, scan
     async function tick() {
       if (stopped) return;
       let delay = intervalMs;
-      const image = captureFrame(videoRef.current, { maxSide: 640, quality: 0.7 });
-      if (image) {
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) {
         try {
-          const result = await onFrameRef.current(image, controller.signal);
+          const result = await onFrameRef.current(video, controller.signal);
           if (result?.delayMs) delay = result.delayMs;
         } catch {
           delay = 3000; // unexpected error: back off
@@ -119,7 +117,7 @@ export default function WebcamCapture({ active, onFrame, intervalMs = 1200, scan
         ) : null}
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        One frame is checked at a time. This is not a full anti-spoofing check.
+        Faces are analysed on this device; only numbers are sent to the server. This is not a full anti-spoofing check.
       </p>
     </div>
   );

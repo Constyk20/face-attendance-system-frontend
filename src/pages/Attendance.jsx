@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SessionDetailModal from "../components/SessionDetailModal";
+import ModelStatus from "../components/ModelStatus";
 import WebcamCapture from "../components/WebcamCapture";
 import { ListSkeleton, TableSkeleton } from "../components/Skeleton";
 import { Alert, Button, Card, EmptyState, PageHeader, SelectField, StatusBadge } from "../components/ui";
+import useFaceEngine from "../hooks/useFaceEngine";
 import useFetch from "../hooks/useFetch";
 import {
   endAttendance,
@@ -12,6 +14,7 @@ import {
   recognizeFace,
   startAttendance,
 } from "../services/api";
+import { EMBEDDING_MODEL, FaceIssue, embedFace } from "../services/faceEngine";
 import { errorMessage, formatDateTime, isCanceled } from "../utils/format";
 
 export default function Attendance() {
@@ -26,6 +29,7 @@ export default function Attendance() {
   const [ending, setEnding] = useState(false);
   const [viewing, setViewing] = useState(null);
 
+  const engine = useFaceEngine(); // starts downloading the models as soon as the page opens
   const sessionRef = useRef(null);
   useEffect(() => {
     sessionRef.current = session;
@@ -103,11 +107,28 @@ export default function Attendance() {
 
   // Called by the camera, one frame at a time.
   const handleFrame = useCallback(
-    async (image, signal) => {
+    async (video, signal) => {
       const current = sessionRef.current;
       if (!current || current.status !== "active") return undefined;
+
+      // 1. Face detection + embedding happen here in the browser.
+      let embedding;
       try {
-        const { data } = await recognizeFace(current.id, image, signal);
+        ({ embedding } = await embedFace(video, { policy: "dominant" }));
+      } catch (err) {
+        if (err instanceof FaceIssue) {
+          setStatusText(err.message); // nothing is sent to the server for an unusable frame
+          setLastMatch(null);
+          return { delayMs: 700 };
+        }
+        setStatusText("Face analysis failed in this browser. Reload the page and try again.");
+        return { delayMs: 3000 };
+      }
+      if (signal.aborted) return undefined;
+
+      // 2. Only the numbers go to the server, which matches them against stored faces.
+      try {
+        const { data } = await recognizeFace(current.id, embedding, EMBEDDING_MODEL, signal);
 
         if (data.busy) {
           return { delayMs: 1500 }; // server is still busy: wait, do not overwrite the status
@@ -186,7 +207,10 @@ export default function Attendance() {
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card title="Camera" icon="camera">
           {active ? (
-            <WebcamCapture active={active} onFrame={handleFrame} />
+            <>
+              <ModelStatus {...engine} onRetry={engine.retry} />
+              <WebcamCapture active={active} onFrame={handleFrame} scanning={engine.status === "ready"} />
+            </>
           ) : (
             <EmptyState icon="camera" title="Camera is off">
               The camera starts when a session is active.

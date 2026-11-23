@@ -95,6 +95,7 @@ function StatusRow({ loading, ok, warn, label, detail }) {
 }
 
 const MODEL_LABELS = {
+  browser: ["Runs in the browser", true, false],
   ready: ["Models loaded", true, false],
   loading: ["Loading models...", false, true],
   not_loaded: ["Models not loaded yet", false, true],

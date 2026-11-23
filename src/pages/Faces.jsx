@@ -65,12 +65,16 @@ export default function Faces() {
                     <td className="px-3 py-3">{student.matric_number}</td>
                     <td className="px-3 py-3">
                       <Badge color={student.face_registered ? "green" : "amber"}>
-                        {student.face_registered ? "Registered" : "Not yet"}
+                        {student.face_status === "needs_reregistration"
+                          ? "Re-register needed"
+                          : student.face_registered
+                            ? "Registered"
+                            : "Not yet"}
                       </Badge>
                     </td>
                     <td className="px-3 py-3 text-right">
                       <Button variant="secondary" icon="camera" className="px-3 py-1" onClick={() => setFaceStudent(student)}>
-                        {student.face_registered ? "Re-register" : "Register face"}
+                        {student.face_registered || student.face_status === "needs_reregistration" ? "Re-register" : "Register face"}
                       </Button>
                     </td>
                   </tr>

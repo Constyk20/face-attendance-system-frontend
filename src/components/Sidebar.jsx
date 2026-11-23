@@ -1,6 +1,6 @@
-"Updated the Sidebar component to use lowercase filename for consistency with imports and file naming conventions."
 import { NavLink } from "react-router-dom";
 import Icon from "./Icon";
+
 const ADMIN_SECTIONS = [
   { links: [{ to: "/admin", label: "Dashboard", icon: "home", end: true }] },
   {
