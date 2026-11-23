@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
+import Sidebar from "./components/sidebar";
 import { PageSkeleton } from "./components/Skeleton";
 import Login from "./pages/Login";
 import { getStoredUser } from "./utils/format";
